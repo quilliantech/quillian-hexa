@@ -4,7 +4,8 @@ name: Build Quillian Hexa APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build:
@@ -22,6 +23,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          api-level: 35
+          build-tools: 35.0.0
+          packages: platform-tools
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -32,24 +37,27 @@ jobs:
         run: |
           mkdir extracted
           unzip -q Quillian_Hexa_Phone_Project.zip -d extracted
-          PROJECT_DIR=$(dirname "$(find extracted -name package.json -print -quit)")
-          if [ ! -f "$PROJECT_DIR/package.json" ]; then
+          PROJECT_DIR=$(dirname "$(find extracted -name package.json | head -n 1)")
+          if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/package.json" ]; then
             echo "Project package.json not found"
             exit 1
           fi
-          cp -R "$PROJECT_DIR"/. .
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
 
       - name: Install dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npm install
 
       - name: Add Android platform
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npx cap add android
 
       - name: Sync Android
+        working-directory: ${{ env.PROJECT_DIR }}
         run: npx cap sync android
 
       - name: Build APK
-        working-directory: android
+        working-directory: ${{ env.PROJECT_DIR }}/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
@@ -58,4 +66,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Quillian-Hexa-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
